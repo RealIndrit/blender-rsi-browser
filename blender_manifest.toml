@@ -13,7 +13,13 @@ license = [
 copyright = [
   "2024 RealIndrit",
 ]
-wheels = []
+platforms = [
+  "windows-x64",
+]
+wheels = [
+  "./wheels/python_openctm-1.0.12-cp311-cp311-win_amd64.whl",
+  "./wheels/numpy-2.1.2-cp311-cp311-win_amd64.whl",
+]
 
 [permissions]
 network = "Download from robertsspaceindustries.com"

@@ -1,3 +1,4 @@
+import shutil
 import typing as t
 import pathlib
 import json
@@ -13,6 +14,10 @@ class RSIException(Exception):
 class RSIApiWrapper:
     def __init__(self):
         self.cache_dir = pathlib.Path("./cache")
+        log.debug(f"Cache dir: {self.cache_dir}")
+
+    def clear_cache(self):
+        shutil.rmtree(self.cache_dir)
 
     def _get(
         self,
@@ -102,7 +107,7 @@ class RSIApiWrapper:
         Get ship information for the given name.
         """
         log.debug(f"Getting SI for #{name}")
-        cache_path = self.cache_dir / name / "pip.json"
+        cache_path = self.cache_dir / name / "ship_info.json"
 
         if not cache_path.exists():
             try:
@@ -140,12 +145,12 @@ class RSIApiWrapper:
 
         Returns the path to the downloaded thumbnail in JPEG format.
         """
-        log.debug(f"Getting thumbnail for #{name}")
+        log.info(f"Getting thumbnail for #{name}")
         cache_path = self.cache_dir / name / "thumbnail.jpg"
 
         if not cache_path.exists():
             try:
-                log.info(f"Downloading thumbnail for #{name}")
+                log.debug(f"Downloading thumbnail for #{name}")
                 data = self._get(url)
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cache_path.write_bytes(data)
@@ -161,33 +166,20 @@ class RSIApiWrapper:
 
         Returns the path to the downloaded model in GLB format.
         """
-        log.debug(f"Getting model for #{name}")
-        cache_path = self.cache_dir / name / "model.glb"
-        # if not cache_path.exists():
-    #         log.info(f"Downloading model for #{itemNo}")
-    #         try:
-    #             # This ID appears to be hard-coded in the website source code?
-    #             headers = {"X-Client-Id": "4863e7d2-1428-4324-890b-ae5dede24fc6"}
-    #             rotera_exists = self._get_json(
-    #                 f"https://web-api.ikea.com/{self.country}/{self.language}/rotera/data/exists/{itemNo}",
-    #                 headers=headers,
-    #             )
-    #             log.debug("Exists data: %r", rotera_exists)
-    #             if not rotera_exists["exists"]:
-    #                 raise IkeaException(f"No model available for #{itemNo}")
-    #
-    #             rotera_data = self._get_json(
-    #                 f"https://web-api.ikea.com/{self.country}/{self.language}/rotera/data/model/{itemNo}",
-    #                 headers=headers,
-    #             )
-    #             log.debug("Model metadata: %r", rotera_data)
-    #             data = self._get(rotera_data["modelUrl"])
-    #             cache_path.parent.mkdir(parents=True, exist_ok=True)
-    #             cache_path.write_bytes(data)
-    #         except Exception as e:
-    #             log.exception(f"Error downloading model for #{itemNo}:")
-    #             raise RSIException(f"Error downloading model for #{itemNo}: {e}")
-    #
+        log.info(f"Getting model for #{name}")
+        cache_path = self.cache_dir / name / "model.ctm"
+        if not cache_path.exists():
+            log.info(f"Downloading model for #{name}")
+            try:
+                log.debug(f"Downloading model for #{name}")
+                # TODO: Programtically find ctm file
+                data = self._get("https://robertsspaceindustries.com/media/kvt3bfwjb1cxwr/source/AEGIS_JAVELIN.ctm")
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_path.write_bytes(data)
+            except Exception as e:
+                log.exception(f"Error downloading model for #{name}:")
+                raise RSIException(f"Error downloading model for #{name}: {e}")
+        log.debug(f"Cache for model #{name} at path #{cache_path}")
         return str(cache_path)
 
     if __name__ == "__main__":

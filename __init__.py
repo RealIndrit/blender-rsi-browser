@@ -1,9 +1,11 @@
+import os
 import typing as t
 import pathlib
 import logging
 
 import bpy
 import bpy.utils.previews  # type: ignore
+import openctm
 
 from .rsi_lib import RSIApiWrapper, RSIException
 
@@ -29,7 +31,7 @@ def _get_thumbnail_icon(name: str, url: str) -> int:
 
     return thumbs[name].icon_id
 
-
+# https://docs.blender.org/manual/en/dev/advanced/extensions/python_wheels.html
 def _init(self, context):
     """
     Configure global things - gets called once on startup and then again
@@ -48,6 +50,26 @@ def _init(self, context):
     )
     log.info("Initialized RSI Browser")
 
+class RSIClearCacheOperator(bpy.types.Operator):
+    """
+    Clear RSI Browser Cache
+    """
+
+    bl_idname = "rsi.clear_cache"
+    bl_label = "Clear Cache"
+    bl_description = ("Clears the cache, the cache is used to speed up repeated look up times"
+                      "when this is cleared, initial loading will be slow and second slow will"
+                      "noticeable quicker")
+
+    @classmethod
+    def poll(self, context):
+        # Deactivate when cache is empty
+        return os.path.exists(rsi.cache_dir)
+
+    def execute(self, context) -> t.Set[str]:
+        rsi.clear_cache()
+        return {'FINISHED'}
+
 class RSIBrowserPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
     debug: bpy.props.BoolProperty(name="Debug", default=False, update=_init)  # type: ignore
@@ -55,6 +77,7 @@ class RSIBrowserPreferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "debug")
+        layout.operator(RSIClearCacheOperator.bl_idname, icon="CONSOLE")
 
 class RSIImportOperator(bpy.types.Operator):
     """
@@ -73,11 +96,23 @@ class RSIImportOperator(bpy.types.Operator):
 
         try:
             si = rsi.get_si(self.name)
-            # try:
-            #     bpy.ops.import_scene.gltf(filepath=ikea.get_model(self.itemNo))
-            # except AttributeError:
-            #     self.report({"ERROR"}, "Blender is missing the glTF import add-on, please enable it in Preferences")
-            #     return {"CANCELLED"}
+            try:
+                location = rsi.get_model(self.name)
+                log.info(f"Did stuff path {location}")
+                ctm_data = openctm.import_mesh(location)
+                mesh = bpy.data.meshes.new(self.name)
+                # mesh.verts.extend(ctm_data.vertices)
+                # mesh.faces.extend(ctm_data.faces)
+                # mesh.calcNormals()
+                # mesh.sel = True
+                #
+                # scn = bpy.data.scenes.active
+                # scn.objects.selected = []
+                # obj = scn.objects.new(mesh, self.name)
+                # scn.objects.active = obj
+            except AttributeError:
+                self.report({"ERROR"}, "Blender is missing the glTF import add-on, please enable it in Preferences")
+                return {"CANCELLED"}
 
             for obj in bpy.context.selected_objects:
                 assert isinstance(obj, bpy.types.Object)
@@ -192,6 +227,7 @@ def register() -> None:
     bpy.types.WindowManager.rsi_search = bpy.props.StringProperty(
         name="Search", default="", update=_update_search, options={"SKIP_SAVE"}
     )
+    bpy.utils.register_class(RSIClearCacheOperator)
     bpy.utils.register_class(RSIBrowserPreferences)
     bpy.utils.register_class(RSIBrowserPanel)
     bpy.utils.register_class(RSIProductPanel)
@@ -206,3 +242,4 @@ def unregister() -> None:
     bpy.utils.unregister_class(RSIProductPanel)
     bpy.utils.unregister_class(RSIBrowserPanel)
     bpy.utils.unregister_class(RSIBrowserPreferences)
+    bpy.utils.unregister_class(RSIClearCacheOperator)
