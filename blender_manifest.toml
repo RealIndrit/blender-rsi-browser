@@ -1,0 +1,37 @@
+schema_version = "1.0.0"
+id = "starcitizen_browser"
+version = "0.1.0"
+name = "RSI Browser"
+tagline = "Search and import models from robertsspaceindustries.com"
+maintainer = "RealIndrit <externalcontact.shield824@passmail.net>"
+type = "add-on"
+tags = ["Import-Export"]
+blender_version_min = "4.2.0"
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+copyright = [
+  "2024 RealIndrit",
+]
+wheels = []
+
+[permissions]
+network = "Download from robertsspaceindustries.com"
+files = "Store downloaded models"
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "/cache/",
+  "/.git/",
+  "/.github/",
+  "/.gitignore",
+  "/.mypy_cache/",
+  "/.ruff_cache/",
+  "/venv/",
+  "/*.zip",
+  "/*.blend",
+  "/*.svg",
+  "/*.png",
+  "/*.json",
+]
