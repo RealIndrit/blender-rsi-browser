@@ -1,11 +1,11 @@
-import os
 import typing as t
 import pathlib
 import logging
+import os
 
 import bpy
+import bmesh
 import bpy.utils.previews  # type: ignore
-import openctm
 
 from .rsi_lib import RSIApiWrapper, RSIException
 
@@ -99,19 +99,16 @@ class RSIImportOperator(bpy.types.Operator):
             try:
                 location = rsi.get_model(self.name)
                 log.info(f"Did stuff path {location}")
-                ctm_data = openctm.import_mesh(location)
                 mesh = bpy.data.meshes.new(self.name)
-                # mesh.verts.extend(ctm_data.vertices)
-                # mesh.faces.extend(ctm_data.faces)
-                # mesh.calcNormals()
-                # mesh.sel = True
-                #
-                # scn = bpy.data.scenes.active
-                # scn.objects.selected = []
-                # obj = scn.objects.new(mesh, self.name)
-                # scn.objects.active = obj
-            except AttributeError:
-                self.report({"ERROR"}, "Blender is missing the glTF import add-on, please enable it in Preferences")
+                bm = bmesh.new()
+                bm.from_mesh(mesh)
+                obj = bpy.data.objects.new(self.name, mesh)
+                active_collection = bpy.context.view_layer.active_layer_collection
+                coll = bpy.data.collections.get(active_collection)
+                coll.objects.link(obj)
+
+            except Exception as e:
+                self.report({"ERROR"}, f"Something went wrong when trying to import model file {location} {e}")
                 return {"CANCELLED"}
 
             for obj in bpy.context.selected_objects:
