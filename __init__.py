@@ -3,6 +3,7 @@ import pathlib
 import logging
 import os
 
+import openctm
 import bpy
 import bmesh
 import bpy.utils.previews  # type: ignore
