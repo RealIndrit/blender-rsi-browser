@@ -114,20 +114,21 @@ class RSIApiWrapper:
                 log.info(f"Downloading SI for #{name}")
                 url = f"https://robertsspaceindustries.com/graphql"
                 data = ("""
-                            [
-                                {
-                                    "operationName": "GetShipList",
-                                    "variables": {
-                                        "query": {
-                                            "limit": 20,
-                                            "ships": {
-                                                "name": "SHIP_NAME"
-                                            }
-                                        }
-                                    },
-                                    "query": "query GetShipList($query: SearchQuery!) {\\n  store(name: \\"pledge\\", browse: true) {\\n    search(query: $query) {\\n      resources {\\n        ...RSIShipFragment\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\\nfragment RSIShipFragment on RSIShip {\\n  title\\n  name\\n  url\\n  type\\n  focus\\n  msrp\\n  productionStatus\\n  purchasable\\n  minCrew\\n  maxCrew\\n  manufacturer {\\n    name\\n    __typename\\n  }\\n  imageComposer {\\n    name\\n    url\\n    __typename\\n  }\\n  media {\\n    thumbnail {\\n      slideshow\\n      storeSmall\\n      __typename\\n    }\\n    __typename\\n  }\\n  __typename\\n}"
+                [
+                    {
+                        "operationName": "GetShipList",
+                        "variables": {
+                            "query": {
+                                "limit": 1000,
+                                "ships": {
+                                    "name": "SHIP_NAME"
                                 }
-                            ]""".replace("SHIP_NAME", name))
+                            }
+                        },
+                        "query": "query GetShipList($query: SearchQuery!) {\\n  store(name: \\"pledge\\", browse: true) {\\n    search(query: $query) {\\n      resources {\\n        ...RSIShipFragment\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\\nfragment RSIShipFragment on RSIShip {\\n  id\\n  title\\n  name\\n  mass\\n  url\\n  slug\\n  chassisId\\n  cargoCapacity\\n  type\\n  focus\\n  msrp\\n  productionStatus\\n  featuredForShipList\\n  purchasable\\n  minCrew\\n  maxCrew\\n  size\\n  productionStatus\\n  manufacturerId\\n  rollMax\\n  pitchMax\\n  yawMax\\n  length\\n  beam\\n  height\\n  xAxisAcceleration\\n  yAxisAcceleration\\n  zAxisAcceleration\\n  afterburnerSpeed\\n  manufacturer {\\n    name\\n    code\\n    __typename\\n  }\\n  imageComposer {\\n    name\\n    url\\n    __typename\\n  }\\n  media {\\n    thumbnail {\\n      slideshow\\n      storeSmall\\n      __typename\\n    }\\n    __typename\\n  }\\n  __typename\\n}"
+                    }
+                ]
+                """.replace("SHIP_NAME", name))
 
                 headers = {"content-type": "application/json"}
                 data = self._post_json(url, headers=headers, data=data.encode("utf-8"))[0]["data"]["store"]["search"]["resources"][0]
