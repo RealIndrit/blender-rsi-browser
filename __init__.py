@@ -17,6 +17,10 @@ search_results = []
 
 def _get_thumbnail_icon(name: str, url: str) -> int:
     if name not in thumbs:
+        log.info(url)
+        if url is None or url is "":
+            url = "https://t3.ftcdn.net/jpg/03/35/13/14/240_F_335131435_DrHIQjlOKlu3GCXtpFkIG1v0cGgM9vJC.jpg"
+
         if not bpy.app.online_access:
             # this function _should_ never be called without online access,
             # but just in case, let's make extra sure we never make network
@@ -96,30 +100,37 @@ class RSIImportOperator(bpy.types.Operator):
             return {"CANCELLED"}
 
         try:
-            si = rsi.get_si(self.name)
-            try:
-                location = rsi.get_model(self.name)
-                log.info(f"Did stuff path {location}")
+                si = rsi.get_si(self.name)
                 mesh = bpy.data.meshes.new(self.name)
                 bm = bmesh.new()
+                rsi.get_model(self.name)
+                # ctm = import_mesh()
+
+                # for vertex in ctm['vertices']:
+                #     bm.verts.new(vertex)
+
+                # bm.verts.ensure_lookup_table()
+                # hashes = []
+                # for face in ctm['faces']:
+                #     vert_hash = hash(f"{bm.verts[0]} {bm.verts[1]} {bm.verts[2]}")
+                #     if vert_hash not in hashes:
+                #         bm.faces.new([bm.verts[i] for i in face])
+                #         hashes.append(vert_hash)
+
                 bm.from_mesh(mesh)
+                bm.free()
+
                 obj = bpy.data.objects.new(self.name, mesh)
-                active_collection = bpy.context.view_layer.active_layer_collection
-                coll = bpy.data.collections.get(active_collection)
-                coll.objects.link(obj)
+                bpy.context.scene.collection.objects.link(obj)
 
-            except Exception as e:
-                self.report({"ERROR"}, f"Something went wrong when trying to import model file {location} {e}")
-                return {"CANCELLED"}
-
-            for obj in bpy.context.selected_objects:
                 assert isinstance(obj, bpy.types.Object)
                 obj["rsiName"] = self.name
                 obj.name = si["name"]
                 if not obj.parent:
                     obj.location = bpy.context.scene.cursor.location
         except RSIException as e:
-            self.report({"ERROR"}, str(e))
+            self.report({"ERROR"}, f"Something went wrong when trying to import model file {e}")
+            return {"CANCELLED"}
         return {"FINISHED"}
 
 

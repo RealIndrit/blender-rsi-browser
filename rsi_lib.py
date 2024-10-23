@@ -5,6 +5,7 @@ import json
 import logging
 import urllib.request
 import urllib.parse
+import re
 
 log = logging.getLogger(__name__)
 
@@ -169,18 +170,36 @@ class RSIApiWrapper:
         """
         log.info(f"Getting model for #{name}")
         cache_path = self.cache_dir / name / "model.ctm"
+
         if not cache_path.exists():
             log.info(f"Downloading model for #{name}")
             try:
-                log.debug(f"Downloading model for #{name}")
-                # TODO: Programtically find ctm file
-                data = self._get("https://robertsspaceindustries.com/media/kvt3bfwjb1cxwr/source/AEGIS_JAVELIN.ctm")
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-                cache_path.write_bytes(data)
+                log.debug(f"Trying to download model for #{name}")
+
+                website_data = self._get(f'https://robertsspaceindustries.com{self.get_si(name)["url"]}')
+                pattern = r"(?P<model>model_3d:\s*)\'(?P<text>[^\']+)"
+                result = re.search(pattern, website_data.decode("utf-8"))
+
+                model_url = ""
+                if result:
+                    model_url = result.group('text')
+
+                if model_url is not None and model_url != "":
+                    data = None
+                    if model_url.startswith("https://"):
+                        data = self._get(model_url)
+                    else:
+                        data = self._get(f"https://robertsspaceindustries.com{model_url}")
+
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    cache_path.write_bytes(data)
+                    log.debug(f"Cache for model #{name} at path #{cache_path}")
+                else:
+                    log.debug(f"Model for #{name} could not be downloaded")
             except Exception as e:
                 log.exception(f"Error downloading model for #{name}:")
                 raise RSIException(f"Error downloading model for #{name}: {e}")
-        log.debug(f"Cache for model #{name} at path #{cache_path}")
+
         return str(cache_path)
 
     if __name__ == "__main__":
