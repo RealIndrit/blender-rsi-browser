@@ -1,7 +1,6 @@
 import typing as t
 import pathlib
 import logging
-import os
 
 from openctm.openctm import *
 import bpy
@@ -15,26 +14,22 @@ thumbs = bpy.utils.previews.new()
 rsi = RSIApiWrapper()
 search_results = []
 
-def _get_thumbnail_icon(name: str, url: str) -> int:
-    if name not in thumbs:
-        log.info(url)
-        if url is None or url is "":
-            url = "https://t3.ftcdn.net/jpg/03/35/13/14/240_F_335131435_DrHIQjlOKlu3GCXtpFkIG1v0cGgM9vJC.jpg"
-
+def _get_thumbnail_icon(sid: str, url: str) -> int:
+    if sid not in thumbs:
         if not bpy.app.online_access:
             # this function _should_ never be called without online access,
             # but just in case, let's make extra sure we never make network
             # calls without it.
             raise RSIException("Can't load thumbnail without internet access")
-        filename = rsi.get_thumbnail(name, url)
-        ip = thumbs.load(name, filename, "IMAGE")
+        filename = rsi.get_thumbnail(sid, url)
+        ip = thumbs.load(sid, filename, "IMAGE")
 
         # it appears that images don't always fully load when thumbs.load()
         # is called, but accessing the image_size property forces the image
         # to load fully???
         _wat = ip.image_size[0] + ip.image_size[1]
 
-    return thumbs[name].icon_id
+    return thumbs[sid].icon_id
 
 # https://docs.blender.org/manual/en/dev/advanced/extensions/python_wheels.html
 def _init(self, context):
@@ -92,7 +87,7 @@ class RSIImportOperator(bpy.types.Operator):
     bl_idname = "rsi.import"
     bl_label = "Import a ship"
 
-    name: bpy.props.StringProperty()  # type: ignore
+    sid: bpy.props.StringProperty()  # type: ignore
 
     def execute(self, context) -> t.Set[str]:
         if not bpy.app.online_access:
@@ -100,31 +95,25 @@ class RSIImportOperator(bpy.types.Operator):
             return {"CANCELLED"}
 
         try:
-                si = rsi.get_si(self.name)
-                mesh = bpy.data.meshes.new(self.name)
+                si = rsi.get_ship_info(self.sid)
+                mesh = bpy.data.meshes.new(si['name'])
                 bm = bmesh.new()
-                rsi.get_model(self.name)
+                rsi.get_model(self.sid, si['hologram_3d'])
                 # ctm = import_mesh()
 
                 # for vertex in ctm['vertices']:
                 #     bm.verts.new(vertex)
 
                 # bm.verts.ensure_lookup_table()
-                # hashes = []
-                # for face in ctm['faces']:
-                #     vert_hash = hash(f"{bm.verts[0]} {bm.verts[1]} {bm.verts[2]}")
-                #     if vert_hash not in hashes:
-                #         bm.faces.new([bm.verts[i] for i in face])
-                #         hashes.append(vert_hash)
 
                 bm.from_mesh(mesh)
                 bm.free()
 
-                obj = bpy.data.objects.new(self.name, mesh)
+                obj = bpy.data.objects.new(si["name"], mesh)
                 bpy.context.scene.collection.objects.link(obj)
 
                 assert isinstance(obj, bpy.types.Object)
-                obj["rsiName"] = self.name
+                obj["rsiId"] = self.sid
                 obj.name = si["name"]
                 if not obj.parent:
                     obj.location = bpy.context.scene.cursor.location
@@ -164,10 +153,9 @@ class RSIBrowserPanel(bpy.types.Panel):
             icon = _get_thumbnail_icon(result["name"], result["thumbnail"])
             box.template_icon(icon_value=icon, scale=10)
             btn = box.operator(RSIImportOperator.bl_idname, text="Import")
-            btn.name = result["name"]
+            btn.sid = f"{result['id']}"
 
-
-_last_name = None
+_last_id = None
 _last_si = None
 
 
@@ -185,30 +173,30 @@ class RSIProductPanel(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.object and context.object.get("rsiName")
+        return context.object and context.object.get("rsiId")
 
     def draw(self, context) -> None:
-        global _last_si, _last_name
+        global _last_si, _last_id
 
         layout = self.layout
-        name = context.object.get("rsiName")
+        sid = context.object.get("rsiId")
+
+        if sid == _last_id:
+            si = _last_si
+        else:
+            if not bpy.app.online_access:
+                layout.label(text="Enable online access to see more details")
+                return
+
+            si = rsi.get_ship_info(sid)
+            _last_id = sid
+            _last_si = si
 
         row = layout.row()
         row.label(text="Name")
-        row.label(text=name)
+        row.label(text=si['name'])
 
-        if not bpy.app.online_access:
-            layout.label(text="Enable online access to see more details")
-            return
-
-        if name == _last_name:
-            si = _last_si
-        else:
-            si = rsi.get_si(name)
-            _last_name = name
-            _last_si = si
-
-        icon = _get_thumbnail_icon(name, si["media"]["thumbnail"]["storeSmall"])
+        icon = _get_thumbnail_icon(si['name'], si["media"][0]["images"]['wallpaper_thumb'])
         layout.template_icon(icon_value=icon, scale=10)
 
         grid = layout.grid_flow(row_major=True, even_rows=False, columns=2)
@@ -219,7 +207,7 @@ class RSIProductPanel(bpy.types.Panel):
         grid.label(text="Focus")
         grid.label(text=si["focus"])
         grid.label(text="Crew")
-        grid.label(text=f'{si["minCrew"]} - {si["maxCrew"]}')
+        grid.label(text=f'{si["min_crew"]} - {si["max_crew"]}')
 
         layout.operator("wm.url_open", text="Open Website").url = "https://robertsspaceindustries.com" + si["url"]
 

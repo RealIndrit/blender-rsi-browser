@@ -18,6 +18,7 @@ class RSIApiWrapper:
         log.debug(f"Cache dir: {self.cache_dir}")
 
     def clear_cache(self):
+        log.debug(f"Cleared cache dir: {self.cache_dir}")
         shutil.rmtree(self.cache_dir)
 
     def _get(
@@ -26,10 +27,13 @@ class RSIApiWrapper:
         params: t.Dict[str, str] = {},
         headers: t.Dict[str, str] = {},
     ) -> str:
+        headers['user-agent'] = "RSIBrowser"
         try:
+            url_ = url + "?" + urllib.parse.urlencode(params)
+            log.debug(f"URL: {url_}")
             return urllib.request.urlopen(
                 urllib.request.Request(
-                    url + "?" + urllib.parse.urlencode(params), headers=headers
+                    url_, headers=headers
                 )
             ).read()
         except Exception as e:
@@ -41,6 +45,7 @@ class RSIApiWrapper:
             headers: t.Dict[str, str] = {},
             data: bytes = None,
     ) -> str:
+        headers['user-agent'] = "RSIBrowser"
         try:
             return urllib.request.urlopen(
                 urllib.request.Request(
@@ -54,9 +59,10 @@ class RSIApiWrapper:
     def _get_json(
         self,
         url: str,
+        params: t.Dict[str, str] = {},
         headers: t.Dict[str, str] = {},
     ) -> t.Dict[str, t.Any]:
-        return json.loads(self._get(url, headers=headers))
+        return json.loads(self._get(url, params=params, headers=headers))
 
     def _post_json(
         self,
@@ -81,7 +87,7 @@ class RSIApiWrapper:
                             }
                         }
                     },
-                    "query": "query GetShipList($query: SearchQuery!) {\\n  store(name: \\"pledge\\", browse: true) {\\n    search(query: $query) {\\n      resources {\\n        ...RSIShipFragment\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\\nfragment RSIShipFragment on RSIShip {\\n  title\\n  name\\n  url\\n  media {\\n    thumbnail {\\n      storeSmall\\n      __typename\\n    }\\n    __typename\\n  }\\n  __typename\\n}"
+                    "query": "query GetShipList($query: SearchQuery!) {\\n  store(name: \\"pledge\\", browse: true) {\\n    search(query: $query) {\\n      resources {\\n        ...RSIShipFragment\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\\nfragment RSIShipFragment on RSIShip {\\n  id\\n \\n}"
                 }
             ]""".replace("SHIP_NAME", query))
             headers = {"content-type": "application/json"}
@@ -92,113 +98,97 @@ class RSIApiWrapper:
             raise RSIException(f"Error searching for {query}: {e}")
 
         results = []
-        for ship in search_results[0]["data"]["store"]["search"]["resources"]:
+        for ship in search_results[0]['data']['store']['search']['resources']:
+            ship_info = self.get_ship_info(ship['id'])
             results.append(
                 {
-                    "name": ship["name"],
-                    "title": ship["title"],
-                    "thumbnail": ship["media"]["thumbnail"]["storeSmall"],
-                    "url": ship["url"]
+                    "name": ship_info["name"],
+                    "id": ship_info["id"],
+                    "thumbnail": ship_info["media"][0]["images"]['wallpaper_thumb'],
+                    "url": ship_info["url"]
                 }
             )
         return results
 
-    def get_si(self, name: str) -> t.Dict[str, t.Any]:
+    def get_ship_info(self, ship_id: str) -> json:
         """
         Get ship information for the given name.
         """
-        log.debug(f"Getting SI for #{name}")
-        cache_path = self.cache_dir / name / "ship_info.json"
-
+        log.debug(f"Getting SI for #{ship_id}")
+        cache_path = self.cache_dir / ship_id / "ship_info.json"
         if not cache_path.exists():
             try:
-                log.info(f"Downloading SI for #{name}")
-                url = f"https://robertsspaceindustries.com/graphql"
-                data = ("""
-                [
-                    {
-                        "operationName": "GetShipList",
-                        "variables": {
-                            "query": {
-                                "limit": 1000,
-                                "ships": {
-                                    "name": "SHIP_NAME"
-                                }
-                            }
-                        },
-                        "query": "query GetShipList($query: SearchQuery!) {\\n  store(name: \\"pledge\\", browse: true) {\\n    search(query: $query) {\\n      resources {\\n        ...RSIShipFragment\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\\nfragment RSIShipFragment on RSIShip {\\n  id\\n  title\\n  name\\n  mass\\n  url\\n  slug\\n  chassisId\\n  cargoCapacity\\n  type\\n  focus\\n  msrp\\n  productionStatus\\n  featuredForShipList\\n  purchasable\\n  minCrew\\n  maxCrew\\n  size\\n  productionStatus\\n  manufacturerId\\n  rollMax\\n  pitchMax\\n  yawMax\\n  length\\n  beam\\n  height\\n  xAxisAcceleration\\n  yAxisAcceleration\\n  zAxisAcceleration\\n  afterburnerSpeed\\n  manufacturer {\\n    name\\n    code\\n    __typename\\n  }\\n  imageComposer {\\n    name\\n    url\\n    __typename\\n  }\\n  media {\\n    thumbnail {\\n      slideshow\\n      storeSmall\\n      __typename\\n    }\\n    __typename\\n  }\\n  __typename\\n}"
-                    }
-                ]
-                """.replace("SHIP_NAME", name))
+                log.info(f"Downloading SI for #{ship_id}")
+                url = f"https://robertsspaceindustries.com/ship-matrix/index"
+                params = {
+                    "id": ship_id
+                }
+                data = self._get_json(url, params=params)['data'][0]
 
-                headers = {"content-type": "application/json"}
-                data = self._post_json(url, headers=headers, data=data.encode("utf-8"))[0]["data"]["store"]["search"]["resources"][0]
+                website_data = self._get(f'https://robertsspaceindustries.com{data["url"]}')
+                pattern = r"(?P<model>model_3d:\s*)\'(?P<text>[^\']+)"
+                result = re.search(pattern, website_data.decode("utf-8"))
+
+                if result:
+                    model_url = result.group('text')
+                    if model_url.startswith("https://"):
+                        data['hologram_3d'] = model_url
+                    else:
+                        data['hologram_3d'] = f"https://robertsspaceindustries.com{model_url}"
+
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cache_path.write_text(json.dumps(data))
+                return data
             except Exception as e:
-                log.exception(f"Error downloading SI for #{name}")
-                raise RSIException(f"Error downloading SI for #{name}: {e}")
+                log.exception(f"Error downloading SI for #{ship_id}: {e}")
+                raise RSIException(f"Error downloading SI for #{ship_id}: {e}")
 
         return json.loads(cache_path.read_text())
 
-    def get_thumbnail(self, name: str, url: str) -> str:
+    def get_thumbnail(self, sid: str, url: str) -> str:
         """
         Get a thumbnail for the given ship.
 
         Returns the path to the downloaded thumbnail in JPEG format.
         """
-        log.info(f"Getting thumbnail for #{name}")
-        cache_path = self.cache_dir / name / "thumbnail.jpg"
+        log.info(f"Getting thumbnail for #{sid}")
+        cache_path = self.cache_dir / sid / "thumbnail.jpg"
 
         if not cache_path.exists():
             try:
-                log.debug(f"Downloading thumbnail for #{name}")
+                log.debug(f"Downloading thumbnail for #{sid}")
                 data = self._get(url)
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cache_path.write_bytes(data)
             except Exception as e:
-                log.exception(f"Error downloading thumbnail for #{name}:")
-                raise RSIException(f"Error downloading thumbnail for #{name}: {e}")
+                log.exception(f"Error downloading thumbnail for #{sid}:")
+                raise RSIException(f"Error downloading thumbnail for #{sid}: {e}")
 
         return str(cache_path)
 
-    def get_model(self, name: str) -> str:
+    def get_model(self, sid: str, url: str) -> str:
         """
         Get a 3D model for the given ship.
 
         Returns the path to the downloaded model in GLB format.
         """
-        log.info(f"Getting model for #{name}")
-        cache_path = self.cache_dir / name / "model.ctm"
+        log.info(f"Getting model for #{sid}")
+        cache_path = self.cache_dir / sid / "model.ctm"
 
         if not cache_path.exists():
-            log.info(f"Downloading model for #{name}")
+            log.info(f"Downloading model for #{sid}")
             try:
-                log.debug(f"Trying to download model for #{name}")
-
-                website_data = self._get(f'https://robertsspaceindustries.com{self.get_si(name)["url"]}')
-                pattern = r"(?P<model>model_3d:\s*)\'(?P<text>[^\']+)"
-                result = re.search(pattern, website_data.decode("utf-8"))
-
-                model_url = ""
-                if result:
-                    model_url = result.group('text')
-
-                if model_url is not None and model_url != "":
-                    data = None
-                    if model_url.startswith("https://"):
-                        data = self._get(model_url)
-                    else:
-                        data = self._get(f"https://robertsspaceindustries.com{model_url}")
-
+                log.debug(f"Trying to download model for #{sid}")
+                if url is not None:
+                    data = self._get(url)
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
                     cache_path.write_bytes(data)
-                    log.debug(f"Cache for model #{name} at path #{cache_path}")
+                    log.debug(f"Cache for model #{sid} at path #{cache_path}")
                 else:
-                    log.debug(f"Model for #{name} could not be downloaded")
+                    log.debug(f"Model for #{sid} could not be downloaded")
             except Exception as e:
-                log.exception(f"Error downloading model for #{name}:")
-                raise RSIException(f"Error downloading model for #{name}: {e}")
+                log.exception(f"Error downloading model for #{sid}:")
+                raise RSIException(f"Error downloading model for #{sid}: {e}")
 
         return str(cache_path)
 
