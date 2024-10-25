@@ -1,11 +1,10 @@
-import json
+import math
 import typing as t
 import pathlib
 import logging
 
 from openctm.openctm import *
 import bpy
-import bmesh
 import bpy.utils.previews  # type: ignore
 
 from .rsi_lib import RSIApiWrapper, RSIException
@@ -142,7 +141,7 @@ class RSIBrowserPanel(bpy.types.Panel):
         for result in search_results:
             box = grid.box()
             box.label(text=result["name"])
-            icon = _get_thumbnail_icon(result["name"], result["thumbnail"])
+            icon = _get_thumbnail_icon(str(result["id"]), result["thumbnail"])
             box.template_icon(icon_value=icon, scale=10)
             btn = box.operator(RSIImportOperator.bl_idname, text="Import")
             btn.sid = f"{result['id']}"
@@ -188,7 +187,7 @@ class RSIProductPanel(bpy.types.Panel):
         row.label(text="Name")
         row.label(text=si['name'])
 
-        icon = _get_thumbnail_icon(si['name'], si["media"][0]["images"]['wallpaper_thumb'])
+        icon = _get_thumbnail_icon(str(si['id']), si["media"][0]["images"]['wallpaper_thumb'])
         layout.template_icon(icon_value=icon, scale=10)
 
         grid = layout.grid_flow(row_major=True, even_rows=False, columns=2)
