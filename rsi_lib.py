@@ -126,15 +126,11 @@ class RSIApiWrapper:
                 data = self._get_json(url, params=params)['data'][0]
 
                 website_data = self._get(f'https://robertsspaceindustries.com{data["url"]}')
-                pattern = r"(?P<model>model_3d:\s*)\'(?P<text>[^\']+)"
+                pattern = r"(?P<tag>model_3d:\s*)\'(?P<model>[^\']+)"
                 result = re.search(pattern, website_data.decode("utf-8"))
 
                 if result:
-                    model_url = result.group('text')
-                    if model_url.startswith("https://"):
-                        data['hologram_3d'] = model_url
-                    else:
-                        data['hologram_3d'] = f"https://robertsspaceindustries.com{model_url}"
+                    data['hologram_3d'] = result.group('model')
 
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cache_path.write_text(json.dumps(data))
@@ -157,7 +153,12 @@ class RSIApiWrapper:
         if not cache_path.exists():
             try:
                 log.debug(f"Downloading thumbnail for #{sid}")
-                data = self._get(url)
+
+                if url.startswith("https://"):
+                    data = self._get(url)
+                else:
+                    data = self._get(f"https://robertsspaceindustries.com{url}")
+
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cache_path.write_bytes(data)
             except Exception as e:
@@ -180,7 +181,12 @@ class RSIApiWrapper:
             try:
                 log.debug(f"Trying to download model for #{sid}")
                 if url is not None:
-                    data = self._get(url)
+
+                    if url.startswith("https://"):
+                        data = self._get(url)
+                    else:
+                        data = self._get(f"https://robertsspaceindustries.com{url}")
+
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
                     cache_path.write_bytes(data)
                     log.debug(f"Cache for model #{sid} at path #{cache_path}")
