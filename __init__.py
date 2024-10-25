@@ -1,4 +1,3 @@
-import math
 import typing as t
 import pathlib
 import logging
@@ -32,12 +31,13 @@ def _get_thumbnail_icon(sid: str, url: str) -> int:
     return thumbs[sid].icon_id
 
 # https://docs.blender.org/manual/en/dev/advanced/extensions/python_wheels.html
+prefs = None
 def _init(self, context):
     """
     Configure global things - gets called once on startup and then again
     whenever the preferences are changed.
     """
-    global rsi
+    global rsi, prefs
     prefs = bpy.context.preferences.addons[__package__].preferences
     addon_dir = pathlib.Path(bpy.utils.extension_path_user(__package__))
 
@@ -72,11 +72,34 @@ class RSIClearCacheOperator(bpy.types.Operator):
 
 class RSIBrowserPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
-    debug: bpy.props.BoolProperty(name="Debug", default=False, update=_init)  # type: ignore
+    debug: bpy.props.BoolProperty(name="Debug",
+                                  default=False,
+                                  update=_init)  # type: ignore
+    cleanup_recalculate: bpy.props.BoolProperty(name="Recalculate normals",
+                                                default=True,
+                                                update=_init)  # type: ignore
+    cleanup_close: bpy.props.BoolProperty(name="Remove Close vertices",
+                                          default=True,
+                                          update=_init)  # type: ignore
+    cleanup_isolated: bpy.props.BoolProperty(name="Remove Isolated vertices",
+                                             default=True,
+                                             update=_init)  # type: ignore
+    cleanup_non_manifold: bpy.props.BoolProperty(name="Remove Non-manifold edges",
+                                                 default=True,
+                                                 update=_init)  # type: ignore
+    auto_scale: bpy.props.BoolProperty(name="Automatically scale model to view",
+                                       default=True,
+                                       update=_init)  # type: ignore
 
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "debug")
+        layout.prop(self, "cleanup_recalculate")
+        layout.prop(self, "cleanup_close")
+        layout.prop(self, "cleanup_isolated")
+        layout.prop(self, "cleanup_non_manifold")
+        layout.prop(self, "auto_scale")
+
         layout.operator(RSIClearCacheOperator.bl_idname, icon="CONSOLE")
 
 class RSIImportOperator(bpy.types.Operator):
@@ -97,10 +120,28 @@ class RSIImportOperator(bpy.types.Operator):
         try:
                 si = rsi.get_ship_info(self.sid)
                 ctm = import_mesh(rsi.get_model(self.sid, si['hologram_3d']))
-                bpy.ops.object.add(type='MESH', enter_editmode=False, location=(0, 0, 0))
-                obj = bpy.context.object
-                obj.data.from_pydata(ctm['vertices'], [], ctm['faces'])
-                obj.data.update()
+
+                mesh = bpy.data.meshes.new(name=si["name"])
+                mesh.from_pydata(ctm[0], [], ctm[1])
+                mesh.update()
+
+                obj = bpy.data.objects.new(name=si["name"], object_data=mesh)
+
+                scene = bpy.context.scene
+                scene.collection.objects.link(obj)
+
+                bpy.context.view_layer.objects.active = obj
+                obj.select_set(True)
+                clean_mesh(
+                    remove_non_manifold=prefs.cleanup_non_manifold,
+                    remove_isolated=prefs.cleanup_isolated,
+                    merge_close_vertices=prefs.cleanup_close,
+                    recalculate_normals=prefs.cleanup_recalculate,
+                    threshold=0.0001
+                )
+                clean_mesh()
+                if prefs.auto_scale:
+                    scale_to_viewport(obj)
 
                 assert isinstance(obj, bpy.types.Object)
                 obj["rsiId"] = self.sid
@@ -232,7 +273,8 @@ def unregister() -> None:
     bpy.utils.unregister_class(RSIBrowserPreferences)
     bpy.utils.unregister_class(RSIClearCacheOperator)
 
-def import_mesh(_filename) -> t.Dict[str, t.List]:
+def import_mesh(_filename) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
+    log.info("Importing mesh data")
     ctm_context = ctmNewContext(CTM_IMPORT)
     vertices_ = []
     faces_ = []
@@ -257,9 +299,62 @@ def import_mesh(_filename) -> t.Dict[str, t.List]:
         for i in range(face_count):
             faces_.append((int(face_ctm[i * 3]), int(face_ctm[i * 3 + 1]), int(face_ctm[i * 3 + 2])))
 
-    except Exception as e:
+    except RSIException as e:
         log.exception(f"Something went wrong when trying to import model file {e}")
     finally:
         ctmFreeContext(ctm_context)
 
-    return { "vertices": vertices_, "faces": faces_}
+    return vertices_, faces_
+
+def clean_mesh(remove_doubles=True, remove_non_manifold=True, remove_isolated=True, merge_close_vertices=True, recalculate_normals=True, threshold=0.0001):
+    # Ensure we are in edit mode
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    # Remove non-manifold edges
+    if remove_non_manifold:
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.mesh.select_non_manifold()
+        bpy.ops.mesh.delete(type='EDGE_FACE')
+
+    # Remove isolated vertices
+    if remove_isolated:
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.mesh.select_loose()
+        bpy.ops.mesh.delete(type='VERT')
+
+    # Merge close vertices
+    if merge_close_vertices:
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.remove_doubles(threshold=threshold)
+
+    # Recalculate normals
+    if recalculate_normals:
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+
+    # Return to object mode
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def scale_to_viewport(obj):
+    # Switch to Object Mode
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # Get the bounding box dimensions
+    bounding_box = obj.bound_box
+    dimensions = [abs(bounding_box[i][j] - bounding_box[i - 4][j]) for i in range(4, 8) for j in range(3)]
+    max_dimension = max(dimensions)
+
+    # Calculate the scaling factor
+    scale_factor = 1.0 / max_dimension
+    obj.scale = (scale_factor, scale_factor, scale_factor)
+
+    # Apply the scaling
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+
+    # Center the object to the origin
+    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+
+    # Update the viewport to center the object
+    bpy.ops.view3d.view_all(center=True)
