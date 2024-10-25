@@ -1,3 +1,4 @@
+import json
 import typing as t
 import pathlib
 import logging
@@ -96,27 +97,18 @@ class RSIImportOperator(bpy.types.Operator):
 
         try:
                 si = rsi.get_ship_info(self.sid)
-                mesh = bpy.data.meshes.new(si['name'])
-                bm = bmesh.new()
-                rsi.get_model(self.sid, si['hologram_3d'])
-                # ctm = import_mesh()
-
-                # for vertex in ctm['vertices']:
-                #     bm.verts.new(vertex)
-
-                # bm.verts.ensure_lookup_table()
-
-                bm.from_mesh(mesh)
-                bm.free()
-
-                obj = bpy.data.objects.new(si["name"], mesh)
-                bpy.context.scene.collection.objects.link(obj)
+                ctm = import_mesh(rsi.get_model(self.sid, si['hologram_3d']))
+                bpy.ops.object.add(type='MESH', enter_editmode=False, location=(0, 0, 0))
+                obj = bpy.context.object
+                obj.data.from_pydata(ctm['vertices'], [], ctm['faces'])
+                obj.data.update()
 
                 assert isinstance(obj, bpy.types.Object)
                 obj["rsiId"] = self.sid
                 obj.name = si["name"]
                 if not obj.parent:
                     obj.location = bpy.context.scene.cursor.location
+
         except RSIException as e:
             self.report({"ERROR"}, f"Something went wrong when trying to import model file {e}")
             return {"CANCELLED"}
@@ -245,9 +237,6 @@ def import_mesh(_filename) -> t.Dict[str, t.List]:
     ctm_context = ctmNewContext(CTM_IMPORT)
     vertices_ = []
     faces_ = []
-    normals_ = []
-    colors_ = []
-    texture_ = []
 
     try:
         ctmLoad(ctm_context, _filename.encode("utf-8"))
@@ -260,32 +249,18 @@ def import_mesh(_filename) -> t.Dict[str, t.List]:
         vertex_ctm = ctmGetFloatArray(ctm_context, CTM_VERTICES)
 
         for i in range(vertex_count):
-            vertices_.append((vertex_ctm[i * 3], vertex_ctm[i * 3 + 1], vertex_ctm[i * 3 + 2]))
+            vertices_.append((float(vertex_ctm[i * 3]), float(vertex_ctm[i * 3 + 1]), float(vertex_ctm[i * 3 + 2])))
 
         # read faces
         face_count = ctmGetInteger(ctm_context, CTM_TRIANGLE_COUNT)
         face_ctm = ctmGetIntegerArray(ctm_context, CTM_INDICES)
 
         for i in range(face_count):
-            faces_.append((face_ctm[i * 3], face_ctm[i * 3 + 1], face_ctm[i * 3 + 2]))
-
-        if ctmGetInteger(ctm_context, CTM_HAS_NORMALS) == CTM_TRUE:
-            normals_ctm = ctmGetFloatArray(ctm_context, CTM_NORMALS)
-            for i in range(vertex_count):
-                normals_.append((normals_ctm[i * 3], normals_ctm[i * 3 + 1], normals_ctm[i * 3 + 2]))
-
-        tex_count = ctmGetInteger(ctm_context,  CTM_UV_MAP_COUNT)
-        if tex_count > 0:
-            texture_ = ctmGetFloatArray(ctm_context, CTM_UV_MAP_1)
-
-
-        color_map = ctmGetNamedAttribMap(ctm_context, 'Color'.encode("utf-8"))
-        if color_map != 0:
-            colors_ = ctmGetFloatArray(ctm_context, color_map)
+            faces_.append((int(face_ctm[i * 3]), int(face_ctm[i * 3 + 1]), int(face_ctm[i * 3 + 2])))
 
     except Exception as e:
         log.exception(f"Something went wrong when trying to import model file {e}")
     finally:
         ctmFreeContext(ctm_context)
 
-    return { "vertices": vertices_, "faces": faces_, "normals": normals_, "colors": colors_, "uv": texture_ }
+    return { "vertices": vertices_, "faces": faces_}
