@@ -2,7 +2,8 @@ Blender RSI Browser
 ====================
 Import 3D models from robertsspaceindustries.com into your scene!
 
-Note that CIG still owns the copyright for these models, you probably don't want to be using them commercially, I guess?
+Note that CIG still owns the copyright for these models, you probably don't want to be using them commercially. I do
+in no way endorse using this outside strictly personal and educational use. Any legal issues is on you as the user.
 
 Dev notes
 ---------
