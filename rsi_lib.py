@@ -1,4 +1,5 @@
 import shutil
+import threading
 import typing as t
 import pathlib
 import json
@@ -98,16 +99,24 @@ class RSIApiWrapper:
             raise RSIException(f"Error searching for {query}: {e}")
 
         results = []
-        for ship in search_results[0]['data']['store']['search']['resources']:
+        def fetch_ship_info(ship):
             ship_info = self.get_ship_info(ship['id'])
-            results.append(
-                {
-                    "name": ship_info["name"],
-                    "id": ship_info["id"],
-                    "thumbnail": ship_info["media"][0]["images"]['subscribers_vault_thumbnail'],
-                    "url": ship_info["url"]
-                }
-            )
+            results.append({
+                "name": ship_info["name"],
+                "id": ship_info["id"],
+                "thumbnail": ship_info["media"][0]["images"]['subscribers_vault_thumbnail'],
+                "url": ship_info["url"]
+            })
+
+        threads = []
+        for ship in search_results[0]['data']['store']['search']['resources']:
+            t = threading.Thread(target=fetch_ship_info, args=(ship,))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
         return results
 
     def get_ship_info(self, ship_id: str) -> json:
