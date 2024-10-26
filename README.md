@@ -19,3 +19,8 @@ blender --command extension build
 
 install:
 * blender -> edit -> preferences -> add-ons -> install from disk -> select the .zip file
+
+
+Credits
+-------
+This plugin was heavily inspired by [Ikea Browser](https://github.com/shish/blender-ikea-browser/), go check it out!

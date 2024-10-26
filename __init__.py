@@ -4,7 +4,7 @@ import logging
 
 from openctm.openctm import *
 import bpy
-import bpy.utils.previews  # type: ignore
+import bpy.utils.previews
 
 from .rsi_lib import RSIApiWrapper, RSIException
 
