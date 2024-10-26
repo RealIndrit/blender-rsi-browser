@@ -313,7 +313,7 @@ def import_mesh(_filename) -> tuple[list[tuple[float, float, float]], list[tuple
 
     return vertices_, faces_
 
-def clean_mesh(remove_doubles=True, remove_non_manifold=True, remove_isolated=True, merge_close_vertices=True, recalculate_normals=True, threshold=0.0001):
+def clean_mesh(remove_non_manifold=True, remove_isolated=True, merge_close_vertices=True, recalculate_normals=True, threshold=0.0001):
     # Ensure we are in edit mode
     bpy.ops.object.mode_set(mode='EDIT')
 
