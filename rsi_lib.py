@@ -104,7 +104,7 @@ class RSIApiWrapper:
                 {
                     "name": ship_info["name"],
                     "id": ship_info["id"],
-                    "thumbnail": ship_info["media"][0]["images"]['wallpaper_thumb'],
+                    "thumbnail": ship_info["media"][0]["images"]['subscribers_vault_thumbnail'],
                     "url": ship_info["url"]
                 }
             )
@@ -131,6 +131,8 @@ class RSIApiWrapper:
 
                 if result:
                     data['hologram_3d'] = result.group('model')
+                else:
+                    data['hologram_3d'] = None
 
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cache_path.write_text(json.dumps(data))

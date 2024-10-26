@@ -67,6 +67,7 @@ class RSIClearCacheOperator(bpy.types.Operator):
         return os.path.exists(rsi.cache_dir)
 
     def execute(self, context) -> t.Set[str]:
+        self.report({"INFO"}, f"Cleared cache folder: {rsi.cache_dir}")
         rsi.clear_cache()
         return {'FINISHED'}
 
@@ -119,35 +120,41 @@ class RSIImportOperator(bpy.types.Operator):
 
         try:
                 si = rsi.get_ship_info(self.sid)
-                ctm = import_mesh(rsi.get_model(self.sid, si['hologram_3d']))
+                if si['hologram_3d']:
+                    self.report({"INFO"}, f"Importing Model for {si['name']}")
+                    ctm = import_mesh(rsi.get_model(self.sid, si['hologram_3d']))
 
-                mesh = bpy.data.meshes.new(name=si["name"])
-                mesh.from_pydata(ctm[0], [], ctm[1])
-                mesh.update()
+                    mesh = bpy.data.meshes.new(name=si["name"])
+                    mesh.from_pydata(ctm[0], [], ctm[1])
+                    mesh.update()
 
-                obj = bpy.data.objects.new(name=si["name"], object_data=mesh)
+                    obj = bpy.data.objects.new(name=si["name"], object_data=mesh)
 
-                scene = bpy.context.scene
-                scene.collection.objects.link(obj)
+                    scene = bpy.context.scene
+                    scene.collection.objects.link(obj)
 
-                bpy.context.view_layer.objects.active = obj
-                obj.select_set(True)
-                clean_mesh(
-                    remove_non_manifold=prefs.cleanup_non_manifold,
-                    remove_isolated=prefs.cleanup_isolated,
-                    merge_close_vertices=prefs.cleanup_close,
-                    recalculate_normals=prefs.cleanup_recalculate,
-                    threshold=0.0001
-                )
-                clean_mesh()
-                if prefs.auto_scale:
-                    scale_to_viewport(obj)
+                    bpy.context.view_layer.objects.active = obj
+                    obj.select_set(True)
+                    clean_mesh(
+                        remove_non_manifold=prefs.cleanup_non_manifold,
+                        remove_isolated=prefs.cleanup_isolated,
+                        merge_close_vertices=prefs.cleanup_close,
+                        recalculate_normals=prefs.cleanup_recalculate,
+                        threshold=0.0001
+                    )
+                    clean_mesh()
+                    if prefs.auto_scale:
+                        scale_to_viewport(obj)
 
-                assert isinstance(obj, bpy.types.Object)
-                obj["rsiId"] = self.sid
-                obj.name = si["name"]
-                if not obj.parent:
-                    obj.location = bpy.context.scene.cursor.location
+                    assert isinstance(obj, bpy.types.Object)
+                    obj["rsiId"] = self.sid
+                    obj.name = si["name"]
+                    if not obj.parent:
+                        obj.location = bpy.context.scene.cursor.location
+
+                    self.report({"INFO"}, f"Imported Model successfully")
+                else:
+                    self.report({"INFO"},f"Model for {si['name']} cannot be found")
 
         except RSIException as e:
             self.report({"ERROR"}, f"Something went wrong when trying to import model file {e}")
@@ -228,7 +235,7 @@ class RSIProductPanel(bpy.types.Panel):
         row.label(text="Name")
         row.label(text=si['name'])
 
-        icon = _get_thumbnail_icon(str(si['id']), si["media"][0]["images"]['wallpaper_thumb'])
+        icon = _get_thumbnail_icon(str(si['id']), si["media"][0]["images"]['subscribers_vault_thumbnail'])
         layout.template_icon(icon_value=icon, scale=10)
 
         grid = layout.grid_flow(row_major=True, even_rows=False, columns=2)
