@@ -81,13 +81,13 @@ class RSIBrowserPreferences(bpy.types.AddonPreferences):
                                                 default=True,
                                                 update=_init)  # type: ignore
     cleanup_close: bpy.props.BoolProperty(name="Remove Close vertices",
-                                          default=True,
+                                          default=False,
                                           update=_init)  # type: ignore
     cleanup_isolated: bpy.props.BoolProperty(name="Remove Isolated vertices",
-                                             default=True,
+                                             default=False,
                                              update=_init)  # type: ignore
     cleanup_non_manifold: bpy.props.BoolProperty(name="Remove Non-manifold edges",
-                                                 default=True,
+                                                 default=False,
                                                  update=_init)  # type: ignore
     auto_scale: bpy.props.BoolProperty(name="Automatically scale model to view",
                                        default=True,
