@@ -2,11 +2,10 @@ import typing as t
 import pathlib
 import logging
 
-import numpy as np
-from openctm.openctm import *
 import bpy
 import bpy.utils.previews
 
+from .openctm import *
 from .rsi_lib import RSIApiWrapper, RSIException
 
 log = logging.getLogger(__name__)
@@ -124,9 +123,9 @@ class RSIImportOperator(bpy.types.Operator):
                 if si['hologram_3d']:
                     self.report({"INFO"}, f"Importing Model for {si['name']}")
                     ctm = import_mesh(rsi.get_model(self.sid, si['hologram_3d']))
-
+                    ctm.flip_vertices_XY()
                     mesh = bpy.data.meshes.new(name=si["name"])
-                    mesh.from_pydata(ctm[0], [], ctm[1])
+                    mesh.from_pydata(ctm.vertices, [], ctm.faces)
                     mesh.update()
 
                     obj = bpy.data.objects.new(name=si["name"], object_data=mesh)
@@ -280,45 +279,6 @@ def unregister() -> None:
     bpy.utils.unregister_class(RSIBrowserPanel)
     bpy.utils.unregister_class(RSIBrowserPreferences)
     bpy.utils.unregister_class(RSIClearCacheOperator)
-
-def flip_vertices(vertices):
-    # Flip Y and Z axes to convert from Three.js to Blender
-    vertices_np = np.array(vertices, dtype=np.float32)
-    flipped_vertices = vertices_np.copy()
-    flipped_vertices[:, [1, 2]] = vertices_np[:, [2, 1]] * np.array([-1, 1])
-    return flipped_vertices
-
-def import_mesh(_filename) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
-    ctm_context = ctmNewContext(CTM_IMPORT)
-    vertices_ = []
-    faces_ = []
-    try:
-        ctmLoad(ctm_context, _filename.encode("utf-8"))
-        err = ctmGetError(ctm_context)
-        if err != CTM_NONE:
-            raise IOError("Error loading file: %s" % str(ctmErrorString(err)))
-
-        # Read vertices
-        vertex_count = ctmGetInteger(ctm_context, CTM_VERTEX_COUNT)
-        vertex_ctm = ctmGetFloatArray(ctm_context, CTM_VERTICES)
-        for i in range(vertex_count):
-            vertices_.append((float(vertex_ctm[i * 3]), float(vertex_ctm[i * 3 + 1]), float(vertex_ctm[i * 3 + 2])))
-
-        # Flip vertices
-        vertices_ = flip_vertices(vertices_).tolist()
-
-        # Read faces
-        face_count = ctmGetInteger(ctm_context, CTM_TRIANGLE_COUNT)
-        face_ctm = ctmGetIntegerArray(ctm_context, CTM_INDICES)
-        for i in range(face_count):
-            faces_.append((int(face_ctm[i * 3]), int(face_ctm[i * 3 + 1]), int(face_ctm[i * 3 + 2])))
-
-    except RSIException as e:
-        log.exception(f"Something went wrong when trying to import model file {e}")
-    finally:
-        ctmFreeContext(ctm_context)
-
-    return vertices_, faces_
 
 def clean_mesh(remove_non_manifold=True, remove_isolated=True, merge_close_vertices=True, recalculate_normals=True, threshold=0.0001):
     # Ensure we are in edit mode
