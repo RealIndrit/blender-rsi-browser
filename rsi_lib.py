@@ -135,11 +135,11 @@ class RSIApiWrapper:
                 data = self._get_json(url, params=params)['data'][0]
 
                 website_data = self._get(f'https://robertsspaceindustries.com{data["url"]}')
-                pattern = r"(?P<tag>model_3d:\s*)\'(?P<model>[^\']+)"
+                pattern = r"model_3d:\s*'(\S+)'"
                 result = re.search(pattern, website_data.decode("utf-8"))
 
                 if result:
-                    data['hologram_3d'] = result.group('model')
+                    data['hologram_3d'] = result.group(1)
                 else:
                     data['hologram_3d'] = None
 
