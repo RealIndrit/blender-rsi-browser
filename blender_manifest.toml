@@ -16,9 +16,8 @@ copyright = [
 platforms = [
   "windows-x64",
 ]
-wheels = [
-  "./wheels/python_openctm-1.0.12-cp311-cp311-win_amd64.whl",
-]
+
+wheels = []
 
 [permissions]
 network = "Download from robertsspaceindustries.com"

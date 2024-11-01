@@ -1,9 +1,8 @@
+import os
 import typing as t
 import pathlib
 import logging
 
-import numpy as np
-from openctm.openctm import *
 import bpy
 import bpy.utils.previews
 
@@ -77,30 +76,10 @@ class RSIBrowserPreferences(bpy.types.AddonPreferences):
     debug: bpy.props.BoolProperty(name="Debug",
                                   default=False,
                                   update=_init)  # type: ignore
-    cleanup_recalculate: bpy.props.BoolProperty(name="Recalculate normals",
-                                                default=True,
-                                                update=_init)  # type: ignore
-    cleanup_close: bpy.props.BoolProperty(name="Remove Close vertices",
-                                          default=False,
-                                          update=_init)  # type: ignore
-    cleanup_isolated: bpy.props.BoolProperty(name="Remove Isolated vertices",
-                                             default=False,
-                                             update=_init)  # type: ignore
-    cleanup_non_manifold: bpy.props.BoolProperty(name="Remove Non-manifold edges",
-                                                 default=False,
-                                                 update=_init)  # type: ignore
-    auto_scale: bpy.props.BoolProperty(name="Automatically scale model to view",
-                                       default=True,
-                                       update=_init)  # type: ignore
 
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "debug")
-        layout.prop(self, "cleanup_recalculate")
-        layout.prop(self, "cleanup_close")
-        layout.prop(self, "cleanup_isolated")
-        layout.prop(self, "cleanup_non_manifold")
-        layout.prop(self, "auto_scale")
 
         layout.operator(RSIClearCacheOperator.bl_idname, icon="CONSOLE")
 
@@ -123,35 +102,19 @@ class RSIImportOperator(bpy.types.Operator):
                 si = rsi.get_ship_info(self.sid)
                 if si['hologram_3d']:
                     self.report({"INFO"}, f"Importing Model for {si['name']}")
-                    ctm = import_mesh(rsi.get_model(self.sid, si['hologram_3d']))
+                    try:
+                        bpy.ops.import_scene.openctm(filepath=rsi.get_model(self.sid, si['hologram_3d']))
+                    except AttributeError:
+                        self.report({"ERROR"},
+                                    "Blender is missing the OpenCTM import add-on, please enable it in Preferences")
+                        return {"CANCELLED"}
 
-                    mesh = bpy.data.meshes.new(name=si["name"])
-                    mesh.from_pydata(ctm[0], [], ctm[1])
-                    mesh.update()
-
-                    obj = bpy.data.objects.new(name=si["name"], object_data=mesh)
-
-                    scene = bpy.context.scene
-                    scene.collection.objects.link(obj)
-
-                    bpy.context.view_layer.objects.active = obj
-                    obj.select_set(True)
-                    clean_mesh(
-                        remove_non_manifold=prefs.cleanup_non_manifold,
-                        remove_isolated=prefs.cleanup_isolated,
-                        merge_close_vertices=prefs.cleanup_close,
-                        recalculate_normals=prefs.cleanup_recalculate,
-                        threshold=0.0001
-                    )
-                    clean_mesh()
-                    if prefs.auto_scale:
-                        scale_to_viewport(obj)
-
-                    assert isinstance(obj, bpy.types.Object)
-                    obj["rsiId"] = self.sid
-                    obj.name = si["name"]
-                    if not obj.parent:
-                        obj.location = bpy.context.scene.cursor.location
+                    for obj in bpy.context.selected_objects:
+                        assert isinstance(obj, bpy.types.Object)
+                        obj["rsiId"] = self.sid
+                        obj.name = si["name"]
+                        if not obj.parent:
+                            obj.location = bpy.context.scene.cursor.location
 
                     self.report({"INFO"}, f"Imported Model successfully")
                 else:
@@ -280,95 +243,3 @@ def unregister() -> None:
     bpy.utils.unregister_class(RSIBrowserPanel)
     bpy.utils.unregister_class(RSIBrowserPreferences)
     bpy.utils.unregister_class(RSIClearCacheOperator)
-
-def flip_vertices(vertices):
-    # Flip Y and Z axes to convert from Three.js to Blender
-    vertices_np = np.array(vertices, dtype=np.float32)
-    flipped_vertices = vertices_np.copy()
-    flipped_vertices[:, [1, 2]] = vertices_np[:, [2, 1]] * np.array([-1, 1])
-    return flipped_vertices
-
-def import_mesh(_filename) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
-    ctm_context = ctmNewContext(CTM_IMPORT)
-    vertices_ = []
-    faces_ = []
-    try:
-        ctmLoad(ctm_context, _filename.encode("utf-8"))
-        err = ctmGetError(ctm_context)
-        if err != CTM_NONE:
-            raise IOError("Error loading file: %s" % str(ctmErrorString(err)))
-
-        # Read vertices
-        vertex_count = ctmGetInteger(ctm_context, CTM_VERTEX_COUNT)
-        vertex_ctm = ctmGetFloatArray(ctm_context, CTM_VERTICES)
-        for i in range(vertex_count):
-            vertices_.append((float(vertex_ctm[i * 3]), float(vertex_ctm[i * 3 + 1]), float(vertex_ctm[i * 3 + 2])))
-
-        # Flip vertices
-        vertices_ = flip_vertices(vertices_).tolist()
-
-        # Read faces
-        face_count = ctmGetInteger(ctm_context, CTM_TRIANGLE_COUNT)
-        face_ctm = ctmGetIntegerArray(ctm_context, CTM_INDICES)
-        for i in range(face_count):
-            faces_.append((int(face_ctm[i * 3]), int(face_ctm[i * 3 + 1]), int(face_ctm[i * 3 + 2])))
-
-    except RSIException as e:
-        log.exception(f"Something went wrong when trying to import model file {e}")
-    finally:
-        ctmFreeContext(ctm_context)
-
-    return vertices_, faces_
-
-def clean_mesh(remove_non_manifold=True, remove_isolated=True, merge_close_vertices=True, recalculate_normals=True, threshold=0.0001):
-    # Ensure we are in edit mode
-    bpy.ops.object.mode_set(mode='EDIT')
-
-    # Remove non-manifold edges
-    if remove_non_manifold:
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.mesh.select_non_manifold()
-        bpy.ops.mesh.delete(type='EDGE_FACE')
-
-    # Remove isolated vertices
-    if remove_isolated:
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.mesh.select_loose()
-        bpy.ops.mesh.delete(type='VERT')
-
-    # Merge close vertices
-    if merge_close_vertices:
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.remove_doubles(threshold=threshold)
-
-    # Recalculate normals
-    if recalculate_normals:
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.normals_make_consistent(inside=False)
-
-    # Return to object mode
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-
-def scale_to_viewport(obj):
-    # Switch to Object Mode
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    # Get the bounding box dimensions
-    bounding_box = obj.bound_box
-    dimensions = [abs(bounding_box[i][j] - bounding_box[i - 4][j]) for i in range(4, 8) for j in range(3)]
-    max_dimension = max(dimensions)
-
-    # Calculate the scaling factor
-    scale_factor = 1.0 / max_dimension
-    obj.scale = (scale_factor, scale_factor, scale_factor)
-
-    # Apply the scaling
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-
-    # Center the object to the origin
-    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
-    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-
-    # Update the viewport to center the object
-    bpy.ops.view3d.view_all(center=True)
