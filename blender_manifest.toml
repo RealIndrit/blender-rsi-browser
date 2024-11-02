@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "starcitizen_browser"
-version = "0.1.0"
+version = "1.0.0"
 name = "RSI Browser"
 tagline = "Search and import models from robertsspaceindustries.com"
 maintainer = "RealIndrit <externalcontact.shield824@passmail.net>"
