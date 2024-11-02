@@ -6,6 +6,14 @@ Plugin requires [Import OpenCTM (.ctm)](https://github.com/RealIndrit/blender-im
 Note that CIG still owns the copyright for these models, you probably don't want to be using them commercially. I do
 in no way endorse using this outside strictly personal and educational use. Any legal issues is on you as the user.
 
+![Showcase of search menu](assets/menu_showcase.png)
+## Usage
+
+- Downalod
+   - Release tags here on [GitHub](https://github.com/RealIndrit/blender-rsi-browser/releases/tag/1.0.0)
+- Install like any other blender plugin
+- Search for ship and click import
+
 Dev notes
 ---------
 Blender 4.2.0 uses python 3.11 specifically, so use that to install bpy and create a virtualenv for if you want to have IDE autocompletions and such:
@@ -19,7 +27,7 @@ Build the addon .zip file:
 blender --command extension build
 ```
 
-install:
+Install:
 * blender -> edit -> preferences -> add-ons -> install from disk -> select the .zip file
 
 
