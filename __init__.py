@@ -113,6 +113,7 @@ class RSIImportOperator(bpy.types.Operator):
                         assert isinstance(obj, bpy.types.Object)
                         obj["rsiId"] = self.sid
                         obj.name = si["name"]
+                        obj.dimensions = (si['beam'], si['length'], si['height'])
                         if not obj.parent:
                             obj.location = bpy.context.scene.cursor.location
 
