@@ -2,6 +2,8 @@ Blender RSI Browser
 ====================
 Import 3D models from robertsspaceindustries.com into your scene!
 
+***For Blender 4.2 and up***
+
 Plugin requires [Import OpenCTM (.ctm)](https://github.com/RealIndrit/blender-openctm) plugin.
 Note that CIG still owns the copyright for these models, you probably don't want to be using them commercially. I do
 in no way endorse using this outside strictly personal and educational use. Any legal issues is on you as the user.
