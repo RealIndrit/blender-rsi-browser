@@ -209,6 +209,10 @@ class RSIProductPanel(bpy.types.Panel):
         grid.label(text=si["type"])
         grid.label(text="Focus")
         grid.label(text=si["focus"])
+        grid.label(text="Size")
+        grid.label(text=si["size"])
+        grid.label(text="H/L/B (m)")
+        grid.label(text=f"{si['height']}/{si['length']}/{si['beam']}")
         grid.label(text="Crew")
         grid.label(text=f'{si["min_crew"]} - {si["max_crew"]}')
 
