@@ -18,6 +18,7 @@ in no way endorse using this outside strictly personal and educational use. Any 
    - Release tags here on [GitHub](https://github.com/RealIndrit/blender-rsi-browser/releases/tag/1.0.0)
 - Install like any other blender plugin
 - Search for ship and click import
+- To import Submeshes in a model go to Preferences > Addon > Separate Submeshes (Slower Import!)
 
 Dev notes
 ---------

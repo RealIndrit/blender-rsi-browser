@@ -77,9 +77,15 @@ class RSIBrowserPreferences(bpy.types.AddonPreferences):
                                   default=False,
                                   update=_init)  # type: ignore
 
+    seperate_submeshes: bpy.props.BoolProperty(name="Separate Submeshes",
+                                   description="Splits complete loops in the mesh to their on objects for easier individual component manipulation. (SLOW IMPORT)",
+                                  default=False,
+                                  update=_init)  # type: ignore
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "debug")
+        layout.prop(self, "seperate_submeshes")
 
         layout.operator(RSIClearCacheOperator.bl_idname, icon="CONSOLE")
 
@@ -109,13 +115,28 @@ class RSIImportOperator(bpy.types.Operator):
                                     "Blender is missing the OpenCTM import add-on, please enable it in Preferences")
                         return {"CANCELLED"}
 
-                    for obj in bpy.context.selected_objects:
-                        assert isinstance(obj, bpy.types.Object)
-                        obj["rsiId"] = self.sid
-                        obj.name = si["name"]
-                        obj.dimensions = (si['beam'], si['length'], si['height'])
-                        if not obj.parent:
-                            obj.location = bpy.context.scene.cursor.location
+                    oject_collection = bpy.data.collections.new(name=si["name"])
+                    bpy.context.scene.collection.children.link(oject_collection)
+
+                    obj = bpy.context.selected_objects[0]
+                    assert isinstance(obj, bpy.types.Object)
+                    obj["rsiId"] = self.sid
+                    obj.name = si["name"]
+                    obj.dimensions = (si['beam'], si['length'], si['height'])
+
+                    if prefs.seperate_submeshes:
+                        if obj.type == 'MESH':
+                            bpy.context.view_layer.objects.active = obj
+                            bpy.ops.object.mode_set(mode='EDIT')
+                            bpy.ops.mesh.separate(type='LOOSE')
+                            bpy.ops.object.mode_set(mode='OBJECT')
+
+                    for sub_obj in bpy.context.selected_objects:
+                        oject_collection.objects.link(sub_obj)
+                        bpy.context.scene.collection.objects.unlink(sub_obj)
+
+                    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[
+                        oject_collection.name]
 
                     self.report({"INFO"}, f"Imported Model successfully")
                 else:
