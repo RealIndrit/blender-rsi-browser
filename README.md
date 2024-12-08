@@ -17,7 +17,7 @@ UV Import
 
 Submesh separation
 ![Showcase of Workflow](assets/work_flow_example_submesh.png)
-a
+
 ## Usage
 
 - Downalod
