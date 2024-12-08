@@ -74,18 +74,25 @@ class RSIClearCacheOperator(bpy.types.Operator):
 class RSIBrowserPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
     debug: bpy.props.BoolProperty(name="Debug",
+                                  description="Enable some verbose debug logs",
                                   default=False,
                                   update=_init)  # type: ignore
 
     seperate_submeshes: bpy.props.BoolProperty(name="Separate Submeshes",
-                                   description="Splits complete loops in the mesh to their on objects for easier individual component manipulation. (SLOW IMPORT)",
+                                  description="Splits complete loops in the mesh to their on objects for easier individual component manipulation. (SLOW IMPORT)",
                                   default=False,
                                   update=_init)  # type: ignore
+
+    auto_scale: bpy.props.BoolProperty(name="Auto Scale",
+                                               description="Scale the model automatically from the given 'beam', 'length', 'height' data from the CIG matrix, if this causes trouble, turn this off and manually scale objects after import",
+                                               default=True,
+                                               update=_init)  # type: ignore
 
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "debug")
         layout.prop(self, "seperate_submeshes")
+        layout.prop(self, "auto_scale")
 
         layout.operator(RSIClearCacheOperator.bl_idname, icon="CONSOLE")
 
@@ -122,7 +129,9 @@ class RSIImportOperator(bpy.types.Operator):
                     assert isinstance(obj, bpy.types.Object)
                     obj["rsiId"] = self.sid
                     obj.name = si["name"]
-                    obj.dimensions = (si['beam'], si['length'], si['height'])
+
+                    if prefs.auto_scale:
+                        obj.dimensions = (si['beam'], si['length'], si['height'])
 
                     if prefs.seperate_submeshes:
                         if obj.type == 'MESH':

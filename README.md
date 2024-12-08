@@ -17,7 +17,7 @@ UV Import
 
 Submesh separation
 ![Showcase of Workflow](assets/work_flow_example_submesh.png)
-
+a
 ## Usage
 
 - Downalod
@@ -25,6 +25,7 @@ Submesh separation
 - Install like any other blender plugin
 - Search for ship and click import
 - To import Submeshes in a model go to Preferences > Addon > Separate Submeshes (Slower Import!)
+- To toggle autoscaling of an imported model go to Preferences > Addon > Auto Scale
 
 Dev notes
 ---------
