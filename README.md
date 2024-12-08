@@ -2,6 +2,13 @@ Blender RSI Browser
 ====================
 Import 3D models from robertsspaceindustries.com into your scene!
 
+
+![Hornet MK2 Workspace](/assets/hornet_mk2_workspace.png)
+![Hornet MK2](/assets/hornet_mk2.png)
+
+Credits for this render goes to [Rozisz](https://www.artstation.com/artwork/dy4xWJ)
+
+
 ***For Blender 4.2 and up***
 
 Plugin requires [Import OpenCTM (.ctm)](https://github.com/RealIndrit/blender-openctm) plugin.
